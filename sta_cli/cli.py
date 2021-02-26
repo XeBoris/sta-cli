@@ -13,7 +13,6 @@ from .inputs import collect_cli_user_info
 from sta_core.simple_actions import create_db
 from sta_core.simple_actions import load_db
 from sta_core.simple_actions import set_user
-from sta_core.simple_actions import add_user
 from sta_core.simple_actions import list_user
 from sta_core.simple_actions import list_shelve
 from sta_core.simple_actions import mod_user
@@ -21,6 +20,9 @@ from sta_core.simple_actions import add_tracks
 from sta_core.simple_actions import find_tracks
 from sta_core.simple_actions import remove_tracks
 from sta_core.simple_actions import remove_leaves
+
+from sta_core.handler.shelve_handler import ShelveHandler
+from sta_core.handler.db_handler import DataBaseHandler
 
 shelve_temp = os.path.join(os.path.expanduser("~"), ".sta")
 
@@ -71,8 +73,24 @@ def main():
         set_user(db_user=db_user)
 
     elif args._[0] == "addUser":
+        """
+        We add a new user to our Database
+        """
+        #Bind the CLI interface to the database core:
+        db_temp = ShelveHandler()
+        db_dict = db_temp.read_shelve_by_keys(["db_name", "db_type", "db_path"])
+
+        dbh = DataBaseHandler(db_type=db_dict["db_type"])
+        dbh.set_db_path(db_path=db_dict["db_path"])
+        dbh.set_db_name(db_name=db_dict["db_name"])
+
+        #Getting CLI response handler from sta-cli
         init_user_dictionary = collect_cli_user_info()
-        add_user(init_user_dictionary)
+
+        dbh.create_user(init_user_dictionary)
+        del dbh
+        del db_temp
+
 
     elif args._[0] == "listShelve":
         #all allowed key arguments:
@@ -104,7 +122,35 @@ def main():
         print()
 
     elif args._[0] == "listUser":
-        list_user()
+        """
+        Here we are performing operations regarding listing users from the
+        connected database core.
+        """
+
+        #Bind the CLI interface to the database core:
+        db_temp = ShelveHandler()
+        db_dict = db_temp.read_shelve_by_keys(["db_name", "db_type", "db_path"])
+
+        dbh = DataBaseHandler(db_type=db_dict["db_type"])
+        dbh.set_db_path(db_path=db_dict["db_path"])
+        dbh.set_db_name(db_name=db_dict["db_name"])
+
+        #Start to handle list requests.
+        search_result = dbh.search_user("koenigbb", by="username")
+
+        all_hashes = dbh.get_all_users("user_hash")
+
+        for i_hash in all_hashes:
+            i_user = dbh.search_user(i_hash, by="hash")
+            if len(i_user) == 0:
+                continue
+            i_user = i_user[0]
+            user_line = f"{i_user.get('user_surname')} {i_user.get('user_lastname')}: {i_user.get('user_username')} / {i_user.get('user_hash')}"
+
+            print(user_line)
+
+        del db_temp
+        del dbh
 
     elif args._[0] == "modUser":
         # prepare to modify the user database
@@ -116,13 +162,29 @@ def main():
                  date=db_date)
 
     elif args._[0] == "addTracks":
+
+        #Handle argument inputs
         track_source = args.track_source
         source_type = args.source_type
         overwrite = args.overwrite
         input_path = args.path
         date_obj = args.date
 
-        add_tracks(track_source=track_source,
+        # Bind the CLI interface to the database core:
+        db_temp = ShelveHandler()
+        db_dict = db_temp.read_shelve_by_keys(db_temp.get_all_shelve_keys())
+
+        dbh = DataBaseHandler(db_type=db_dict["db_type"])
+        dbh.set_db_path(db_path=db_dict["db_path"])
+        dbh.set_db_name(db_name=db_dict["db_name"])
+
+        dbh_info = {"db_type": db_dict["db_type"],
+                    "db_path": db_dict["db_path"],
+                    "db_name": db_dict["db_name"],
+                    "db_hash": db_dict["db_hash"]}
+
+        add_tracks(core_information=dbh_info,
+                   track_source=track_source,
                    source_type=source_type,
                    input_path=input_path,
                    overwrite=overwrite,
@@ -146,8 +208,7 @@ def main():
         remove_leaves(track_hash)
 
     elif args._[0] == "authorizeStrava":
-        #from .module.strava_auth_routes import urls_blueprint
-        from sta_core.tracker.strava_auth_routes import urls_blueprint
+        from .strava_auth_routes import urls_blueprint
         import webbrowser
         from threading import Timer
         from flask import Flask
