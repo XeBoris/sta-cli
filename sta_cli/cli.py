@@ -24,6 +24,9 @@ from sta_core.simple_actions import remove_leaves
 from sta_core.handler.shelve_handler import ShelveHandler
 from sta_core.handler.db_handler import DataBaseHandler
 
+from sta_etl.sta_etl import cli_proc
+from sta_etl.sta_etl import list_plugins
+
 shelve_temp = os.path.join(os.path.expanduser("~"), ".sta")
 
 def main():
@@ -222,7 +225,28 @@ def main():
         Timer(1, open_browser).start()
         app.run(debug=True)
 
+    elif args._[0] == "process":
+        track_hash = args.hash
+        plugins = args.type
 
+        # Bind the CLI interface to the database core:
+        db_temp = ShelveHandler()
+        db_dict = db_temp.read_shelve_by_keys(db_temp.get_all_shelve_keys())
+        print(db_dict)
+
+        dbh_info = {"db_type": db_dict["db_type"],
+                    "db_path": db_dict["db_path"],
+                    "db_name": db_dict["db_name"],
+                    "db_hash": db_dict["db_hash"]}
+        print(dbh_info)
+        print("")
+        cli_proc(track_hash, dbh_info, plugins)
+
+    elif args._[0] == "list-process-plugins":
+        all_plugins = list_plugins()
+        print("Here is a list existing plugins:")
+        for i_plugin in all_plugins:
+            print(f"<> {i_plugin}")
     return 0
 
 
